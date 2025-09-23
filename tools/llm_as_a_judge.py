@@ -44,6 +44,7 @@ def build_conversation_text(cuts):
 
     return "\n".join(conv)
 
+
 def evaluate_dialogue(text: str) -> str:
     """会話を評価してモデルの生テキスト応答を返す"""
     prompt = f"""以下の会話の品質を評価してください。
@@ -123,7 +124,12 @@ def iter_json_files(target: Path):
 def main():
     in_path = Path(input_dir)
 
-    with open(output_path, "w", encoding="utf-8") as out_f:
+    sample_out = "restored_samples.txt"
+    sample_count = 0
+
+    with open(output_path, "w", encoding="utf-8") as out_f, open(
+        sample_out, "w", encoding="utf-8"
+    ) as sample_f:
         for json_path in iter_json_files(in_path):
             try:
                 with open(json_path, "r", encoding="utf-8") as f:
@@ -138,6 +144,12 @@ def main():
                 continue
 
             text = build_conversation_text(data)
+
+            if sample_count < 3:
+                sample_f.write(f"### {json_path.name}\n")
+                sample_f.write(text + "\n\n")
+                sample_count += 1
+
             resp_text = evaluate_dialogue(text)
 
             parsed = parse_json_loose(resp_text)
@@ -154,6 +166,7 @@ def main():
             print(f"[DONE] {json_path}")
 
     print(f"✅ 評価結果を {output_path} に保存しました")
+    print(f"✅ サンプル復元文を {sample_out} に保存しました")
 
 
 if __name__ == "__main__":
