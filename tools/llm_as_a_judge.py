@@ -12,23 +12,20 @@ model = AutoModelForCausalLM.from_pretrained(
 
 
 def evaluate_text(text: str) -> dict:
+    # 4観点を考慮しつつ、最終的に1〜10の整数1つだけを出力させる
     prompt = f"""
-次の対話テキストについて、以下の4つの観点で1〜10の整数スコアを出してください。
-必ずJSON形式で、整数値のみを出力してください。
-
-観点:
+次の対話テキストを、以下の4観点を総合的に考慮して評価してください。
 - 一貫性 (Coherence)
 - 自然さ (Fluency & Naturalness)
 - 関連性 (Relevance)
 - 情報量 (Informativeness)
 
-出力例:
-{{"Coherence": 8, "Fluency": 7, "Relevance": 9, "Informativeness": 6}}
+出力は、1〜10の**整数**で表す**総合スコア**を**ひとつだけ**にしてください。
+数字以外の文字は一切出力しないでください（例: 7）。
 
 対話テキスト:
 \"\"\"{text}\"\"\""""
 
-    # あなたの提示スタイル（encode → generate）
     tokenized_input = tokenizer.encode(
         prompt, add_special_tokens=False, return_tensors="pt"
     ).to(model.device)
@@ -36,35 +33,24 @@ def evaluate_text(text: str) -> dict:
     with torch.no_grad():
         output = model.generate(
             tokenized_input,
-            max_new_tokens=200,
-            do_sample=False,  # 評価なので確定的に
+            max_new_tokens=8,  # 数字だけなので短く
+            do_sample=False,  # 決定的に
             repetition_penalty=1.05,
             pad_token_id=tokenizer.eos_token_id,
             eos_token_id=tokenizer.eos_token_id,
         )[0]
 
     response = tokenizer.decode(output, skip_special_tokens=True)
-
-    # プロンプトを取り除く
     answer = response.replace(prompt, "").strip()
 
-    # JSON部分を抽出
-    match = re.search(r"\{.*\}", answer, re.DOTALL)
-    if match:
-        try:
-            return json.loads(match.group(0))
-        except json.JSONDecodeError:
-            pass
-
-    return {
-        "Coherence": None,
-        "Fluency": None,
-        "Relevance": None,
-        "Informativeness": None,
-    }
+    # 1〜10 の整数のみを抽出
+    m = re.search(r"\b(10|[1-9])\b", answer)
+    if m:
+        return {"score": int(m.group(1))}
+    return {"score": None}
 
 
-# 書き起こし結果の読み込み
+# 入出力
 input_path = "transcripts.jsonl"
 output_path = "evaluated.jsonl"
 
