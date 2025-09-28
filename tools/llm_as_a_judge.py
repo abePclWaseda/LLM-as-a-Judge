@@ -3,11 +3,13 @@ import re
 import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
-# ── Instruct3（chat形式）を使用 ───────────────────────────────
-MODEL_NAME = "llm-jp/llm-jp-3-7.2b-instruct3"
+# ── 使用モデル（13B instruct4, chat形式） ─────────────────────
+MODEL_NAME = "llm-jp/llm-jp-3.1-13b-instruct4"
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 model = AutoModelForCausalLM.from_pretrained(
-    MODEL_NAME, device_map="auto", torch_dtype=torch.bfloat16
+    MODEL_NAME,
+    device_map="auto",
+    torch_dtype=torch.bfloat16,
 )
 
 # pad_token 未設定対策（必要なら）
@@ -16,7 +18,7 @@ if tokenizer.pad_token_id is None:
 
 
 def evaluate_text(text: str) -> dict:
-    # 4観点を考慮しつつ、最終出力は整数1つだけ
+    # 4観点を考慮しつつ、最終出力は 1〜10 の整数ひとつ
     system_msg = (
         "以下は、タスクを説明する指示です。要求を正確に満たす応答を書きなさい。"
     )
@@ -45,14 +47,14 @@ def evaluate_text(text: str) -> dict:
     with torch.no_grad():
         output = model.generate(
             inputs,
-            max_new_tokens=8,  # 数字のみ想定なので短め
-            do_sample=False,  # 評価は決定的に
+            max_new_tokens=8,  # 数字のみ想定で短め
+            do_sample=False,  # 評価用途なので決定的に
             repetition_penalty=1.05,
             pad_token_id=tokenizer.pad_token_id,
             eos_token_id=tokenizer.eos_token_id,
         )[0]
 
-    # 生成分だけを取り出してデコード
+    # 生成部分のみを取り出してデコード
     gen_only = output[inputs.shape[-1] :]
     answer = tokenizer.decode(gen_only, skip_special_tokens=True).strip()
 
