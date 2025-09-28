@@ -3,17 +3,24 @@ import re
 import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM
 
-tokenizer = AutoTokenizer.from_pretrained("llm-jp/llm-jp-3-7.2b")
+# ── Instruct3（chat形式）を使用 ───────────────────────────────
+MODEL_NAME = "llm-jp/llm-jp-3-7.2b-instruct3"
+tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 model = AutoModelForCausalLM.from_pretrained(
-    "llm-jp/llm-jp-3-7.2b",
-    device_map="auto",
-    torch_dtype=torch.bfloat16,
+    MODEL_NAME, device_map="auto", torch_dtype=torch.bfloat16
 )
+
+# pad_token 未設定対策（必要なら）
+if tokenizer.pad_token_id is None:
+    tokenizer.pad_token = tokenizer.eos_token
 
 
 def evaluate_text(text: str) -> dict:
-    # 4観点を考慮しつつ、最終的に1〜10の整数1つだけを出力させる
-    prompt = f"""
+    # 4観点を考慮しつつ、最終出力は整数1つだけ
+    system_msg = (
+        "以下は、タスクを説明する指示です。要求を正確に満たす応答を書きなさい。"
+    )
+    user_msg = f"""
 次の対話テキストを、以下の4観点を総合的に考慮して評価してください。
 - 一貫性 (Coherence)
 - 自然さ (Fluency & Naturalness)
@@ -24,33 +31,39 @@ def evaluate_text(text: str) -> dict:
 数字以外の文字は一切出力しないでください（例: 7）。
 
 対話テキスト:
-\"\"\"{text}\"\"\""""
+\"\"\"{text}\"\"\"""".strip()
 
-    tokenized_input = tokenizer.encode(
-        prompt, add_special_tokens=False, return_tensors="pt"
+    chat = [
+        {"role": "system", "content": system_msg},
+        {"role": "user", "content": user_msg},
+    ]
+
+    inputs = tokenizer.apply_chat_template(
+        chat, add_generation_prompt=True, tokenize=True, return_tensors="pt"
     ).to(model.device)
 
     with torch.no_grad():
         output = model.generate(
-            tokenized_input,
-            max_new_tokens=8,  # 数字だけなので短く
-            do_sample=False,  # 決定的に
+            inputs,
+            max_new_tokens=8,  # 数字のみ想定なので短め
+            do_sample=False,  # 評価は決定的に
             repetition_penalty=1.05,
-            pad_token_id=tokenizer.eos_token_id,
+            pad_token_id=tokenizer.pad_token_id,
             eos_token_id=tokenizer.eos_token_id,
         )[0]
 
-    response = tokenizer.decode(output, skip_special_tokens=True)
-    answer = response.replace(prompt, "").strip()
+    # 生成分だけを取り出してデコード
+    gen_only = output[inputs.shape[-1] :]
+    answer = tokenizer.decode(gen_only, skip_special_tokens=True).strip()
 
-    # 1〜10 の整数のみを抽出
+    # 1〜10 の整数のみ抽出
     m = re.search(r"\b(10|[1-9])\b", answer)
     if m:
         return {"score": int(m.group(1))}
     return {"score": None}
 
 
-# 入出力
+# ── 入出力 ───────────────────────────────────────────────────
 input_path = "transcripts.jsonl"
 output_path = "evaluated.jsonl"
 
@@ -60,7 +73,7 @@ with open(input_path, "r", encoding="utf-8") as fin, open(
     for line in fin:
         obj = json.loads(line)
         scores = evaluate_text(obj["text"])
-        obj.update(scores)
+        obj.update(scores)  # {"score": <int or None>}
         fout.write(json.dumps(obj, ensure_ascii=False) + "\n")
 
 print(f"評価結果を {output_path} に保存しました。")
