@@ -1,8 +1,11 @@
-# ステレオ音声を reazon-espnet-asr で書き起こしをして，それを "llm-jp/llm-jp-3-7.2b" で対話の質を評価します．
-
 import json
 import glob
-from reazonspeech.espnet.asr import load_model, transcribe, audio_from_path
+import soundfile as sf
+from reazonspeech.espnet.asr import (
+    load_model,
+    transcribe,
+    audio_from_numpy,
+)  # ← audio_from_numpy を使う
 
 # モデルロード
 model = load_model(device="cuda")
@@ -17,10 +20,44 @@ output_path = "transcripts.jsonl"
 
 with open(output_path, "w", encoding="utf-8") as f:
     for wav in wav_files:
-        audio = audio_from_path(wav)
-        ret = transcribe(model, audio)
+        waveform, sr = sf.read(wav)
+        if waveform.ndim != 2 or waveform.shape[1] != 2:
+            print(f"スキップ（ステレオではない）: {wav}")
+            continue
 
-        obj = {"audio_path": wav, "text": ret.text}
+        # 各チャネルを AudioData に変換（numpy → AudioData）
+        audio0 = audio_from_numpy(waveform[:, 0], sr)
+        audio1 = audio_from_numpy(waveform[:, 1], sr)
+
+        # 書き起こし
+        result_0 = transcribe(model, audio0)
+        result_1 = transcribe(model, audio1)
+
+        # Segmentに話者ラベルを付けて統合
+        all_segments = []
+        for seg in result_0.segments:
+            all_segments.append(
+                {"speaker": "A", "start": seg.start_seconds, "text": seg.text}
+            )
+        for seg in result_1.segments:
+            all_segments.append(
+                {"speaker": "B", "start": seg.start_seconds, "text": seg.text}
+            )
+
+        # 開始時刻でソート
+        all_segments.sort(key=lambda x: x["start"])
+
+        # 会話テキストの構築
+        dialogue_lines = [f'{seg["speaker"]}: {seg["text"]}' for seg in all_segments]
+        dialogue_text = "\n".join(dialogue_lines)
+
+        # JSONLとして出力
+        obj = {
+            "audio_path": wav,
+            "channel_0_text": result_0.text,
+            "channel_1_text": result_1.text,
+            "dialogue_text": dialogue_text,
+        }
         f.write(json.dumps(obj, ensure_ascii=False) + "\n")
 
-print(f"書き起こし結果を {output_path} に保存しました。")
+print(f"時系列対話を書き起こした結果を {output_path} に保存しました。")

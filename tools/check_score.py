@@ -1,6 +1,6 @@
 import json, statistics
 
-path = "evaluated.jsonl"  # ←ファイル名に合わせて変更
+path = "data/moshi_stage3_old_jchat_clean_tabidachi/evaluated_dialog.jsonl"  # ←ファイル名に合わせて変更
 scores = []
 
 with open(path, "r", encoding="utf-8") as f:
