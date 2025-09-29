@@ -22,4 +22,4 @@ echo "==== which python ===="
 which python               
 python --version
 
-exec python -m tools.llm_as_a_judge > 0162_llmJudge.log 2>&1
+exec python -m tools.llm_as_a_judge > logs/0162_llmJudge.log 2>&1
