@@ -9,7 +9,7 @@ model = load_model(device="cuda")
 
 # ステレオ音声ファイル群を読み込む
 wav_files = glob.glob(
-    "/home/acg17145sv/experiments/0162_dialogue_model/moshi-finetune/output/moshi_stage3_tabidachi/step_498_fp32/continuation_jchat/generated_wavs/*.wav"
+    "/home/acg17145sv/experiments/0162_dialogue_model/moshi-finetune/output/moshi_stage3_old_jchat_clean_tabidachi/step_498_fp32/continuation_jchat/generated_wavs/*.wav"
 )
 
 # 出力ファイル
