@@ -22,4 +22,4 @@ echo "==== which python ===="
 which python               
 python --version
 
-exec python -m tools.espnet_asr > logs/0162_asr_to_llmJudge.log 2>&1
+exec python -m tools.espnet_asr > logs/0162_espnet_asr.log 2>&1
