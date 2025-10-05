@@ -12,11 +12,11 @@ model = load_model(device="cuda")
 
 # ステレオ音声ファイル群を読み込む
 wav_files = glob.glob(
-    "/home/acg17145sv/experiments/0162_dialogue_model/moshi-finetune/output/moshi_stage3_old_jchat_clean_tabidachi/step_498_fp32/continuation_jchat/generated_wavs/*.wav"
+    "/home/acg17145sv/experiments/0162_dialogue_model/NISQA/data_audio/tmp_podcast_test_20s_head50_1219782.pbs1/*.wav"
 )
 
 # 出力ファイル
-output_path = "transcripts.jsonl"
+output_path = "data_real/podcast_test/transcripts_dialog.jsonl"
 
 with open(output_path, "w", encoding="utf-8") as f:
     for wav in wav_files:
