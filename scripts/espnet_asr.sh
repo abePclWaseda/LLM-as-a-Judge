@@ -3,7 +3,7 @@
 #PBS -q R9920251000
 #PBS -v RTYPE=rt_HF,USE_SSH=1
 #PBS -l select=1:ngpus=1
-#PBS -l walltime=10:00:00
+#PBS -l walltime=1:00:00
 #PBS -j oe
 #PBS -N 0162_espnet_asr
 
@@ -22,4 +22,4 @@ echo "==== which python ===="
 which python               
 python --version
 
-exec python -m tools.espnet_asr > logs/0162_espnet_asr.log 2>&1
+exec python -m tools.espnet_asr > logs/0162_espnet_asr_$PBS_JOBID.log 2>&1
