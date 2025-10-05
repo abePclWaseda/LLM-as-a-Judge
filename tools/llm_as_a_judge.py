@@ -70,8 +70,8 @@ def evaluate_text(dialogue_text: str) -> dict:
 
 
 # ===== 入出力 =====
-input_path = "data/moshi_stage3_old_jchat_clean_tabidachi/transcripts_dialog.jsonl"  # {"audio_path":..., "dialogue_text": "...", ...}
-output_path = "evaluated.jsonl"
+input_path = "data_real/tabidachi/transcripts_dialog.jsonl"  # {"audio_path":..., "dialogue_text": "...", ...}
+output_path = "data_real/tabidachi/evaluated_dialog.jsonl"
 
 n_total = 0
 n_scored = 0
