@@ -6,6 +6,7 @@ import csv
 import json
 import os
 from typing import List, Tuple, Dict, Any, Optional
+from bisect import bisect_left
 
 
 def read_jsonl(path: str):
@@ -76,10 +77,11 @@ def compute_silences_and_classify(
     A: List[Tuple[float, float]], B: List[Tuple[float, float]], min_silence: float
 ):
     """
-    タイムラインのアクティブ話者集合をスイープして、
     無音区間（誰も話していない）を Pause / Gap に分類。
       - Pause: 直前の話者 == 直後の話者
       - Gap  : 直前の話者 != 直後の話者
+    ここで「直後の話者」は無音終了時刻 t1 そのものに発話開始が
+    存在する場合も含めて判定する（t1 を“含む”）。
     """
     events = []
     for s, e in A:
@@ -92,35 +94,33 @@ def compute_silences_and_classify(
         return [], []
 
     events.sort()
-    # 各時刻の直前直後のアクティブ状態を集約（最後の状態を採用）
+
+    # 各 timestamp の「その時刻のイベントをすべて処理し終えた直後」のアクティブ集合
     active_state_by_t: Dict[float, set] = {}
     active = set()
     for t, delta, who in events:
-        # 状態更新前
-        active_state_by_t[t] = set(active)
-        # 更新
+        # 更新前の状態は使わず、「更新後」を保持する
         if delta == +1:
             active.add(who)
         else:
             active.discard(who)
-        # 状態更新後（同じ t なら後勝ち）
         active_state_by_t[t] = set(active)
 
     times = sorted(active_state_by_t.keys())
 
-    # 直前／直後の話者を探すユーティリティ
+    # t より「前」の時刻群で最後に非空だった集合から話者を特定
     def last_speaker_before(t: float) -> Optional[str]:
-        idx = times.index(t)
-        for k in range(idx - 1, -1, -1):
+        i = bisect_left(times, t)  # t を挿入できる位置（= t 未満の数）
+        for k in range(i - 1, -1, -1):
             st = active_state_by_t[times[k]]
             if st:
-                # 同時に複数いた場合は、どちらでも Gap/Pause 判定には十分
                 return next(iter(st))
         return None
 
-    def next_speaker_after(t: float) -> Optional[str]:
-        idx = times.index(t)
-        for k in range(idx + 1, len(times)):
+    # t 以降（t を含む）で最初に非空となる集合から話者を特定
+    def next_speaker_on_or_after(t: float) -> Optional[str]:
+        i = bisect_left(times, t)
+        for k in range(i, len(times)):
             st = active_state_by_t[times[k]]
             if st:
                 return next(iter(st))
@@ -129,20 +129,22 @@ def compute_silences_and_classify(
     pause_list = []
     gap_list = []
 
-    # 連続する timestamp の間で無音かどうかチェック
+    # (t0, t1) の開区間における状態は「t0 直後の状態」に等しい
+    # よって t0 の状態が空なら (t0, t1) は無音
     for t0, t1 in zip(times, times[1:]):
         if t1 <= t0:
             continue
-        st = active_state_by_t[t0]
-        if st:
-            continue  # 誰か話してる→無音ではない
+        st_after_t0 = active_state_by_t[t0]
+        if st_after_t0:
+            continue  # 無音ではない
 
         dur = t1 - t0
         if dur < min_silence:
             continue
 
         prev_spk = last_speaker_before(t0)
-        next_spk = next_speaker_after(t1)
+        next_spk = next_speaker_on_or_after(t1)  # ★ t1 を含めて探索
+
         if prev_spk and next_spk:
             if prev_spk == next_spk:
                 pause_list.append(
@@ -158,7 +160,7 @@ def compute_silences_and_classify(
                         "duration": dur,
                     }
                 )
-        # prev/next どちらか不明なケースは分類不可として捨てる
+        # prev または next が無い（冒頭/末尾の無音など）は分類しない
 
     return pause_list, gap_list
 

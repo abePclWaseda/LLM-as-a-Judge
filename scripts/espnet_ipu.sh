@@ -26,9 +26,7 @@ mkdir -p logs
 
 exec python -m tools.espnet_ipu_jsonl \
   --wav-glob "/home/acg17145sv/experiments/0162_dialogue_model/NISQA/data_audio/tmp_csj_20s_head50_1219655.pbs1/*.wav" \
-  --output ipu.jsonl \
+  --output data_real/csj/ipu.jsonl \
   --device cuda \
-  --min_silence 0.2 \
-  --min_ipu_sec 0.15 \
   --skip-non-stereo \
   --overwrite

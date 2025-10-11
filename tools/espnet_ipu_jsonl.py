@@ -113,19 +113,34 @@ def _filter_min_len(segs: List[Seg], min_ipu_sec: float) -> List[Seg]:
 
 
 def _segments_to_ipus(
-    espnet_segments, min_silence: float, min_ipu_sec: float
+    espnet_segments, min_silence: float, min_ipu_sec: float, merge_short_gaps: bool
 ) -> List[Seg]:
+    """
+    ESPnet segments -> IPUs
+      - merge_short_gaps=False: segmentsをそのまま使う（start/endの補完とmin長フィルタのみ）
+      - merge_short_gaps=True : 短いギャップは結合してIPU化
+    """
     spans = []
     for seg in espnet_segments or []:
         s, e, txt = _get_seg_times(seg)
         if s is None:
             continue
         if e is None:
-            spans.append(Seg(float(s), float(s), txt))  # 次段で補完
+            # end欠損は一旦 start と同じにして後段で補完
+            spans.append(Seg(float(s), float(s), txt))
         else:
             spans.append(Seg(float(s), float(e), txt))
+
+    # end の欠損/不整合を補完
     spans = _close_open_ends(spans)
-    ipus = _merge_short_gaps(spans, min_silence=min_silence)
+
+    if merge_short_gaps:
+        ipus = _merge_short_gaps(spans, min_silence=min_silence)
+    else:
+        # マージしない: segmentsをそのまま（補完済み）IPUとみなす
+        ipus = sorted(spans, key=lambda s: (s.start, s.end))
+
+    # 短すぎるIPUは除外
     ipus = _filter_min_len(ipus, min_ipu_sec=min_ipu_sec)
     return ipus
 
@@ -175,6 +190,11 @@ def main() -> int:
         "--overwrite",
         action="store_true",
         help="Overwrite output file if exists (default: False).",
+    )
+    parser.add_argument(
+        "--merge-short-gaps",
+        action="store_true",
+        help="If set, merge adjacent segments when gap < --min_silence. Default: do NOT merge (use raw ESPnet segments as IPUs).",
     )
     args = parser.parse_args()
 
@@ -235,13 +255,14 @@ def main() -> int:
                     getattr(result_0, "segments", None),
                     args.min_silence,
                     args.min_ipu_sec,
+                    merge_short_gaps=args.merge_short_gaps,
                 )
                 ipus_B = _segments_to_ipus(
                     getattr(result_1, "segments", None),
                     args.min_silence,
                     args.min_ipu_sec,
+                    merge_short_gaps=args.merge_short_gaps,
                 )
-
                 # サマリ
                 sum_A = float(sum(z.duration for z in ipus_A))
                 sum_B = float(sum(z.duration for z in ipus_B))
