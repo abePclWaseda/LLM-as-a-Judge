@@ -29,36 +29,38 @@ def evaluate_text(
     max_new_tokens: int = 8,
     temperature: float = 0.0,
 ) -> dict:
-    """
-    dialogue_text をそのままプロンプトに投げ、1〜10 の整数スコアひとつを返す。
-    """
     dialogue_text = (dialogue_text or "").strip()
     if not dialogue_text:
         return {"score": None, "raw": ""}
 
     system_msg = (
-        "以下は、タスクを説明する指示です。要求を正確に満たす応答を書きなさい。"
+        "あなたは日本語の会話品質の厳密評価者です。出力は必ず有効なJSONのみ。説明や前置きは書かないでください。\n"
+        "重要：これは「音声会話の書き起こし」です。人間の会話には相づち（はい、ええ、うん等）、ためらい、言い直し、短い応答、重なり、言いよどみが自然に含まれます。"
+        "これらは原則として減点対象ではありません。意味の通る範囲なら自然さやターン運用で加点し得ます。\n"
+        "減点は、明確な意味破綻/無関連/機械的反復/会話の前進阻害などに限定します。\n"
+        "{\n"
+        '  "coherence": 1〜10の整数値,\n'
+        '  "naturalness": 1〜10の整数値,\n'
+        '  "relevance": 1〜10の整数値,\n'
+        '  "instruction_following": 1〜10の整数値,\n'
+        '  "turn_taking": 1〜10の整数値,\n'
+        '  "overall": 1〜10の整数値（総合評価）, \n'
+        '  "rationale": "短い根拠説明"\n'
+        "}\n"
     )
     user_msg = f"""
-次のテキストは、人間同士の音声対話を文字起こし（話し言葉の書き起こし）したものです。
-話し言葉特有の言いよどみや途中の中断、重なりなどが含まれていても問題ありません。
+        "次の会話出力を評価してください。これは人間同士の自然な音声会話の書き起こしです。"
+        "句読点や軽微な誤記は減点しないでください。相づちや短文応答は自然さとして許容します。"\n\n
 
-この対話の内容を、以下の4観点を総合的に考慮して評価してください。
-- 一貫性 (Coherence)
-- 自然さ (Fluency & Naturalness)
-- 関連性 (Relevance)
-- 情報量 (Informativeness)
-
-出力は、1〜10の**整数**で表す**総合スコア**を**ひとつだけ**にしてください。
-数字以外の文字は一切出力しないでください（例: 7）。
-
-対話テキスト:
-\"\"\"{dialogue_text}\"\"\"""".strip()
+        対話テキスト:
+        \"\"\"{dialogue_text}\"\"\"""".strip()
 
     chat = [
         {"role": "system", "content": system_msg},
-        {"role": "user", "content": user_msg},
+        {"role": "user", "content": system_msg + user_msg},
     ]
+
+    # print(dialogue_text)
 
     inputs = tokenizer.apply_chat_template(
         chat, add_generation_prompt=True, tokenize=True, return_tensors="pt"
@@ -78,9 +80,7 @@ def evaluate_text(
     gen_only = output[inputs.shape[-1] :]
     answer = tokenizer.decode(gen_only, skip_special_tokens=True).strip()
 
-    m = re.search(r"\b(10|[1-9])\b", answer)
-    score = int(m.group(1)) if m else None
-    return {"score": score, "raw": answer}
+    return {"score": None, "raw": answer}
 
 
 def main() -> int:
