@@ -1,8 +1,9 @@
 import json
 from collections import defaultdict
 from typing import List, Dict, Any
+import math
 
-SILENCE_THRESHOLD = 0.2  # 無音と判定する閾値
+SILENCE_THRESHOLD = 0.2  # 無音判定の閾値（秒）
 
 
 def group_ipus_by_speaker(
@@ -31,35 +32,52 @@ def group_ipus_by_speaker(
     return ipus_by_speaker
 
 
-def calculate_pause_duration(
+def count_ipus_per_minute(
     ipus_by_speaker: Dict[str, List[List[Dict[str, Any]]]],
-) -> Dict[str, float]:
-    pause_by_speaker = {}
-
+) -> Dict[str, Dict[int, int]]:
+    counts = {}
     for speaker, ipus in ipus_by_speaker.items():
-        total_pause = 0.0
-        for i in range(1, len(ipus)):
-            prev_end = ipus[i - 1][-1]["end"]
-            curr_start = ipus[i][0]["start"]
-            pause = curr_start - prev_end
-            if pause >= SILENCE_THRESHOLD:
-                total_pause += pause
-        pause_by_speaker[speaker] = total_pause
-
-    return pause_by_speaker
+        minute_count = defaultdict(int)
+        for ipu in ipus:
+            start_time = ipu[0]["start"]
+            minute = int(start_time // 60)  # 何分目か
+            minute_count[minute] += 1
+        counts[speaker] = dict(sorted(minute_count.items()))
+    return counts
 
 
-# ========== 使用例 ==========
+def get_ipu_durations(
+    ipus_by_speaker: Dict[str, List[List[Dict[str, Any]]]],
+) -> Dict[str, List[float]]:
+    durations = {}
+    for speaker, ipus in ipus_by_speaker.items():
+        durations[speaker] = [
+            round(ipu[-1]["end"] - ipu[0]["start"], 3) for ipu in ipus
+        ]
+    return durations
 
-with open(
-    "/home/acg17145sv/experiments/0162_dialogue_model/data_stage_3/CSJ/text/D01F0002.json",
-    encoding="utf-8",
-) as f:
+
+# ========== 実行 ==========
+
+with open("/home/acg17145sv/experiments/0162_dialogue_model/data_stage_3/CSJ/text/D01F0002.json", encoding="utf-8") as f:
     data = json.load(f)
 
 ipus = group_ipus_by_speaker(data)
-pause_durations = calculate_pause_duration(ipus)
+
+# 1分ごとのIPU数
+ipu_counts = count_ipus_per_minute(ipus)
+
+# IPUの継続時間
+ipu_durations = get_ipu_durations(ipus)
 
 # 出力
-for speaker, pause in pause_durations.items():
-    print(f"話者 {speaker} の Pause 合計時間: {pause:.3f} 秒")
+print("📊 IPU数（1分ごと）:")
+for speaker, minute_counts in ipu_counts.items():
+    print(f"話者 {speaker}:")
+    for minute, count in minute_counts.items():
+        print(f"  {minute}分目: {count} IPUs")
+
+print("\n⏱️ IPU継続時間（秒）:")
+for speaker, durations in ipu_durations.items():
+    print(f"話者 {speaker}:")
+    print("  " + ", ".join(f"{d:.3f}" for d in durations))
