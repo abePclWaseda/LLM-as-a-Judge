@@ -24,11 +24,11 @@ python --version
 
 mkdir -p logs
 
-exec python -m tools.llm_as_a_judge \
-  --input  "data_real/callhome/transcripts_dialog.jsonl" \
-  --output "data_real/callhome/evaluated_dialog_multi.jsonl" \
+exec python -m tools.llm_as_a_judge_split \
+  --input  "data_tabidachi/moshi_stage3_new_jchat_csj_tabidachi/transcripts_dialog_split.jsonl" \
+  --output "data_tabidachi/moshi_stage3_new_jchat_csj_tabidachi/judge_completion_naturalness.jsonl" \
   --model  "llm-jp/llm-jp-3.1-13b-instruct4" \
   --dtype  "bfloat16" \
-  --max-new-tokens 256 \
+  --max-new-tokens 128 \
   --overwrite \
   > "logs/0162_llmJudge_${PBS_JOBID}.log" 2>&1
