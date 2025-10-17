@@ -24,9 +24,9 @@ python --version
 
 mkdir -p logs
 
-exec python -m tools.espnet_asr \
-  --wav-glob "/home/acg17145sv/experiments/0162_dialogue_model/moshi-finetune/output/moshi_stage3_new_jchat_tabidachi/step_498_fp32/continuation_tabidachi_test_full/generated_wavs/*.wav" \
-  --output "data_tabidachi/moshi_stage3_new_jchat_tabidachi/test/transcripts_dialog.jsonl" \
+exec python -m tools.espnet_asr_split \
+  --wav-glob "/home/acg17145sv/experiments/0162_dialogue_model/moshi-finetune/output/moshi_stage3_new_jchat_clean_csj_tabidachi/step_498_fp32/continuation_tabidachi_test_full/generated_wavs/*.wav" \
+  --output "data_tabidachi/moshi_stage3_new_jchat_clean_csj_tabidachi/test/transcripts_dialog_split.jsonl" \
   --device "cuda" \
   --overwrite \
   > "logs/0162_espnet_asr_${PBS_JOBID}.log" 2>&1
